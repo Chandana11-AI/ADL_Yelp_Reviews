@@ -1,0 +1,545 @@
+# %%
+!pip install datasets
+
+
+
+# %%
+!pip install torchtext
+
+# %%
+# General utilities
+import numpy as np
+import pandas as pd
+import re
+import zipfile
+import os
+import gc
+
+#Text cleaning
+import re
+import spacy
+import string
+
+
+# Visualization
+import matplotlib.pyplot as plt
+import seaborn as sns
+from wordcloud import WordCloud
+
+# Sklearn utilities
+from sklearn.model_selection import train_test_split
+
+# LSTM preprocessing
+
+
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.utils import pad_sequences
+
+# DistilBERT preprocessing
+from transformers import DistilBertTokenizerFast
+from datasets import Dataset as HFDataset
+from transformers import DataCollatorWithPadding
+
+import nltk
+import spacy
+
+from collections import Counter, OrderedDict
+nltk.download('punkt')
+nlp = spacy.load("en_core_web_sm")
+
+
+# %%
+# Mount Google Drive
+from google.colab import drive
+drive.mount('/content/drive')
+
+
+# %%
+# Path to the ZIP file on Drive
+zip_path = "/content/drive/MyDrive/yelpdataset.zip"
+extract_path = "/content/yelp_dataset_extracted"
+
+# Unzip the file
+with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+    zip_ref.extractall(extract_path)
+
+print("✅ Unzipped the Yelp dataset.")
+
+# %%
+# Load only a sample of review data (100,000 rows)
+review_chunk = pd.read_json("/content/yelp_dataset_extracted/yelp_academic_dataset_review.json", lines=True, chunksize=100000)
+df_review = next(review_chunk)
+
+# Load full business data
+df_business = pd.read_json("/content/yelp_dataset_extracted/yelp_academic_dataset_business.json", lines=True)
+
+# %%
+df_business.head()
+
+# %%
+df_review.head()
+
+# %%
+# Merge review + business data on business_id
+df_merged = pd.merge(df_review, df_business, on='business_id', how='inner')
+
+# Keep only Restaurant or Hotel reviews
+hospitality_reviews = df_merged[
+    df_merged['categories'].str.contains('Restaurant|Hotel', na=False, case=False)
+]
+
+
+# %%
+df_merged.head()
+
+# %%
+df_merged.to_csv("merged_yelp_data.csv", index=False)
+
+from google.colab import files
+files.download("merged_yelp_data.csv")
+
+
+# %%
+# Use stars from review dataset
+df_filtered = hospitality_reviews[['text', 'stars_x']].copy()
+df_filtered = df_filtered.rename(columns={'stars_x': 'stars'})
+
+# Map star ratings to sentiment
+def map_sentiment(star):
+    if star <= 2:
+        return 0  # Negative
+    elif star == 3:
+        return 1  # Neutral
+    else:
+        return 2  # Positive
+
+df_filtered['sentiment'] = df_filtered['stars'].apply(map_sentiment)
+
+
+# %%
+df_filtered.head()
+
+
+# %%
+
+df_filtered.to_csv("df_filtered.csv", index=False)
+from google.colab import files
+files.download("df_filtered.csv")
+
+# %% [markdown]
+# Upsampling
+
+# %%
+import random
+import nltk
+from nltk.corpus import wordnet
+import pandas as pd
+
+# Skip nltk.download() lines – we're using a basic tokenizer now
+
+def get_synonyms(word):
+    synonyms = set()
+    for syn in wordnet.synsets(word):
+        for lemma in syn.lemmas():
+            if lemma.name().lower() != word.lower():
+                synonyms.add(lemma.name().replace('_', ' '))
+    return list(synonyms)
+
+def synonym_replacement(sentence, n=2):
+    # Simple tokenizer replacement for offline use
+    words = sentence.split()
+    new_words = words.copy()
+    random_word_list = list(set([word for word in words if word.isalpha()]))
+    random.shuffle(random_word_list)
+
+    num_replaced = 0
+    for word in random_word_list:
+        synonyms = get_synonyms(word)
+        if synonyms:
+            synonym = random.choice(synonyms)
+            new_words = [synonym if w == word else w for w in new_words]
+            num_replaced += 1
+        if num_replaced >= n:
+            break
+
+    return ' '.join(new_words)
+
+def augment_dataframe(df, label_col='sentiment', text_col='text', target_label=1, augment_count=1000):
+    subset = df[df[label_col] == target_label]
+    augmented_texts = []
+
+    for i in range(min(augment_count, len(subset))):
+        original_text = subset.iloc[i][text_col]
+        augmented_text = synonym_replacement(original_text, n=2)
+        augmented_texts.append({
+            text_col: augmented_text,
+            label_col: target_label,
+            'stars': subset.iloc[i]['stars']  # Keep original stars if needed
+        })
+
+    return pd.DataFrame(augmented_texts)
+
+
+# %%
+# Load the original dataset
+df_filtered = pd.read_csv("df_filtered.csv")
+
+# Step 1: Check original class distribution
+class_counts = df_filtered['sentiment'].value_counts()
+majority_count = class_counts.max()
+
+# Step 2: Build augmentation plan
+augment_plan = {}
+for label, count in class_counts.items():
+    if count < majority_count:
+        augment_plan[label] = majority_count - count
+
+# Step 3: Apply augmentation for each minority class
+augmented_dfs = []
+for target_label, augment_count in augment_plan.items():
+    aug_df = augment_dataframe(df_filtered, target_label=target_label, augment_count=augment_count)
+    augmented_dfs.append(aug_df)
+
+# Step 4: Combine original + synthetic samples
+balanced_df = pd.concat([df_filtered] + augmented_dfs).sample(frac=1, random_state=42).reset_index(drop=True)
+
+# (Optional) Check class distribution after balancing
+print("✅ New class distribution:\n", balanced_df['sentiment'].value_counts())
+
+
+# %% [markdown]
+# colde to visualize before and after upsampling
+
+# %%
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Load original and upsampled datasets
+df_filtered = pd.read_csv("df_filtered.csv")
+upsampled_df = balanced_df.copy()  # Assuming you have the upsampled dataset
+
+# Count class frequencies
+before_counts = df_filtered['sentiment'].value_counts().sort_index()
+after_counts = upsampled_df['sentiment'].value_counts().sort_index()
+
+# Labels for x-axis
+labels = ['Negative (0)', 'Neutral (1)', 'Positive (2)']
+
+# Plot side-by-side bar charts
+plt.figure(figsize=(12, 5))
+
+# Before upsampling
+plt.subplot(1, 2, 1)
+before_counts.plot(kind='bar', color='salmon')
+plt.title('Before Upsampling')
+plt.xlabel('Sentiment Class')
+plt.ylabel('Number of Samples')
+plt.xticks(ticks=[0, 1, 2], labels=labels, rotation=0)
+
+# After upsampling
+plt.subplot(1, 2, 2)
+after_counts.plot(kind='bar', color='lightgreen')
+plt.title('After Upsampling')
+plt.xlabel('Sentiment Class')
+plt.ylabel('Number of Samples')
+plt.xticks(ticks=[0, 1, 2], labels=labels, rotation=0)
+
+plt.tight_layout()
+plt.show()
+
+
+# %%
+from sklearn.utils import resample
+import pandas as pd
+
+# Target count = match the highest of the two minority classes
+target_count = max(
+    balanced_df[balanced_df['sentiment'] == 0].shape[0],
+    balanced_df[balanced_df['sentiment'] == 1].shape[0]
+)
+
+# Separate majority and minority classes
+positive_df = balanced_df[balanced_df['sentiment'] == 2]
+other_df = balanced_df[balanced_df['sentiment'] != 2]
+
+# Downsample positive class
+positive_downsampled = resample(
+    positive_df,
+    replace=False,
+    n_samples=target_count,
+    random_state=42
+)
+
+# Combine into a new fully balanced DataFrame
+fully_balanced_df = pd.concat([other_df, positive_downsampled]).sample(frac=1, random_state=42).reset_index(drop=True)
+
+# (Optional) Check new distribution
+print("✅ New class distribution after downsampling:\n", fully_balanced_df['sentiment'].value_counts())
+
+
+# %%
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Load original and upsampled datasets
+fully_balanced_df = pd.read_csv("fully_balanced_df.csv")
+upsampled_df = balanced_df.copy()  # Assuming you have the upsampled dataset
+
+# Count class frequencies
+before_counts = upsampled_df['sentiment'].value_counts().sort_index()
+after_counts = fully_balanced_df['sentiment'].value_counts().sort_index()
+
+# Labels for x-axis
+labels = ['Negative (0)', 'Neutral (1)', 'Positive (2)']
+
+# Plot side-by-side bar charts
+plt.figure(figsize=(12, 5))
+
+# Before upsampling
+plt.subplot(1, 2, 1)
+before_counts.plot(kind='bar', color='salmon')
+plt.title('Before Downsampling')
+plt.xlabel('Sentiment Class')
+plt.ylabel('Number of Samples')
+plt.xticks(ticks=[0, 1, 2], labels=labels, rotation=0)
+
+# After upsampling
+plt.subplot(1, 2, 2)
+after_counts.plot(kind='bar', color='lightgreen')
+plt.title('After Downsampling')
+plt.xlabel('Sentiment Class')
+plt.ylabel('Number of Samples')
+plt.xticks(ticks=[0, 1, 2], labels=labels, rotation=0)
+
+plt.tight_layout()
+plt.show()
+
+
+# %%
+fully_balanced_df.to_csv("fully_balanced_df.csv", index=False)
+from google.colab import files
+files.download("fully_balanced_df.csv")
+
+# %% [markdown]
+# EDA (before preprocessing)
+
+# %%
+fully_balanced_df = pd.read_csv("/content/fully_balanced_df.csv")
+df= fully_balanced_df.copy()
+print("\n--- Null and Duplicate Check ---")
+print("Null values:\n", df.isnull().sum())
+print("\nDuplicate rows:", df.duplicated().sum())
+
+# Drop duplicates if any
+df.drop_duplicates(inplace=True)
+
+# %%
+# Label distribution
+
+sns.countplot(x='sentiment', data=df)
+plt.title("Sentiment Label Distribution")
+plt.xlabel("Sentiment Label (0=Negative, 1=Neutral, 2=Positive)")
+plt.ylabel("Count")
+plt.show()
+
+# %%
+# Review lengths
+
+df['review_length'] = df['text'].apply(lambda x: len(str(x).split()))
+
+# Plot histogram of review lengths
+sns.histplot(df['review_length'], bins=30, kde=False)
+plt.title("Review Length Distribution (Before Cleaning)")
+plt.xlabel("Number of Words")
+plt.ylabel("Number of Reviews")
+plt.show()
+
+# %%
+# Boxplot of lengths by label
+
+sns.boxplot(x='sentiment', y='review_length', data=df)
+plt.title("Boxplot of Review Lengths by Sentiment Label")
+plt.xlabel("Sentiment Label (0=Negative, 1=Neutral, 2=Positive)")
+plt.ylabel("Review Length (Word Count)")
+plt.show()
+
+# %%
+# Avg length per label
+
+avg_len = df.groupby('sentiment')['review_length'].mean()
+
+# Bar plot of average length by sentiment
+avg_len.plot(kind='bar', color='skyblue')
+plt.title("Average Review Length by Sentiment Label")
+plt.xlabel("Sentiment Label (0=Negative, 1=Neutral, 2=Positive)")
+plt.ylabel("Average Word Count")
+plt.xticks(rotation=0)
+plt.show()
+
+# %%
+# WordClouds by label
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+
+# Generate WordClouds for each sentiment class
+for sentiment in df['sentiment'].unique():
+    text = " ".join(df[df['sentiment'] == sentiment]['text'].astype(str))
+    wordcloud = WordCloud(width=800, height=400, background_color='white').generate(text)
+
+    plt.figure(figsize=(10, 5))
+    plt.imshow(wordcloud, interpolation='bilinear')
+    plt.axis("off")
+    plt.title(f"WordCloud for Sentiment {sentiment} (0=Negative, 1=Neutral, 2=Positive)")
+    plt.show()
+
+# %% [markdown]
+# Text Cleaning
+
+# %%
+import pandas as pd
+import re
+import spacy
+from tqdm import tqdm
+
+# Load spaCy English model with parser/NER disabled for speed
+nlp = spacy.load("en_core_web_sm", disable=["parser", "ner"])
+
+# Emoji pattern (same as before)
+emoji_pattern = re.compile("["
+    u"\U0001F600-\U0001F64F"
+    u"\U0001F300-\U0001F5FF"
+    u"\U0001F680-\U0001F6FF"
+    u"\U0001F1E0-\U0001F1FF"
+    "]+", flags=re.UNICODE)
+
+# Step 1–5: Fast cleaning before spaCy (remove HTML, emojis, punctuation, etc.)
+def basic_clean(text):
+    text = str(text).lower()
+    text = re.sub(r"<.*?>", "", text)
+    text = emoji_pattern.sub(r'', text)
+    text = re.sub(r"[^a-z\s]", "", text)  # keep only letters and spaces
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+# Step 6–7: Optimized spaCy-based processing for lemmatization + stopword removal
+def clean_dataframe_with_pipe(df, text_col="text", batch_size=512):
+    texts = df[text_col].apply(basic_clean).tolist()
+    cleaned_texts = []
+
+    for doc in tqdm(nlp.pipe(texts, batch_size=batch_size), total=len(texts), desc="Cleaning Text"):
+        tokens = [token.lemma_ for token in doc if not token.is_stop and not token.is_punct]
+        cleaned_texts.append(" ".join(tokens))
+
+    df["clean_text"] = cleaned_texts
+    return df
+
+
+# %%
+df = pd.read_csv("/content/fully_balanced_df.csv")
+df = clean_dataframe_with_pipe(df, text_col="text")
+
+
+# %%
+df_cleaned = df.copy()
+# Save DataFrame to CSV
+df_cleaned.to_csv("cleaned_yelp_reviews.csv", index=False)
+from google.colab import files
+files.download("cleaned_yelp_reviews.csv")
+
+
+# %%
+df_cleaned.head()
+
+# %%
+df_cleaned.tail()
+
+# %%
+
+
+# Calculate cleaned text lengths
+df_cleaned['clean_len'] = df_cleaned['clean_text'].apply(lambda x: len(x.split()))
+
+# Print cleaned length statistics
+print("\n📊 Cleaned Text Length Stats:")
+print("Mean:", df_cleaned['clean_len'].mean())
+print("Max:", df_cleaned['clean_len'].max())
+print("Median:", df_cleaned['clean_len'].median())
+
+# %%
+df_cleaned.describe()
+
+# %%
+df = pd.read_csv("/content/cleaned_yelp_reviews.csv")
+# Encode labels
+label_map = {0: 0, 1: 1, 2: 2}
+df['label'] = df['sentiment'].map(label_map)
+
+# %%
+
+# === 2. LSTM-Specific Preprocessing ===
+# Build vocab
+token_counter = Counter()
+for tokens in df['tokens']:
+    token_counter.update(tokens)
+sorted_tokens = sorted(token_counter.items(), key=lambda x: x[1], reverse=True)
+token_dict = OrderedDict(sorted_tokens)
+specials = ['<pad>', '<unk>']
+lstm_vocab = build_vocab(token_dict, specials=specials)
+lstm_vocab.set_default_index(lstm_vocab['<unk>'])
+
+# Convert tokens to input_ids for LSTM
+df['lstm_input_ids'] = df['tokens'].apply(lambda tokens: [lstm_vocab[token] for token in tokens])
+
+# Save LSTM dataset
+lstm_df = df[['lstm_input_ids', 'label']].copy()
+lstm_train, lstm_temp = train_test_split(lstm_df, test_size=0.2, stratify=lstm_df['label'], random_state=42)
+lstm_val, lstm_test = train_test_split(lstm_temp, test_size=0.5, stratify=lstm_temp['label'], random_state=42)
+os.makedirs("LSTM_dataset", exist_ok=True)
+lstm_train.to_csv("LSTM_dataset/train.csv", index=False)
+lstm_val.to_csv("LSTM_dataset/val.csv", index=False)
+lstm_test.to_csv("LSTM_dataset/test.csv", index=False)
+
+import zipfile
+with zipfile.ZipFile("LSTM_dataset.zip", 'w') as zipf:
+    for file in os.listdir("LSTM_dataset"):
+        zipf.write(os.path.join("LSTM_dataset", file), arcname=file)
+
+
+# Allow download
+from google.colab import files
+files.download("LSTM_dataset.zip")
+
+
+# %%
+
+# === 3. DistilBERT-Specific Preprocessing ===
+from transformers import DistilBertTokenizerFast
+bert_tokenizer = DistilBertTokenizerFast.from_pretrained("distilbert-base-uncased")
+
+df_bert = df.copy()
+tokens = bert_tokenizer(df_bert['clean_text'].astype(str).tolist(), padding=True, truncation=True, max_length=512)
+df_bert['input_ids'] = tokens['input_ids']
+df_bert['attention_mask'] = tokens['attention_mask']
+df_bert = df_bert[['input_ids', 'attention_mask', 'label']]
+
+# Save BERT dataset
+bert_train, bert_temp = train_test_split(df_bert, test_size=0.2, stratify=df_bert['label'], random_state=42)
+bert_val, bert_test = train_test_split(bert_temp, test_size=0.5, stratify=bert_temp['label'], random_state=42)
+os.makedirs("DistillBert_datasets", exist_ok=True)
+bert_train.to_csv("DistillBert_datasets/train.csv", index=False)
+bert_val.to_csv("DistillBert_datasets/val.csv", index=False)
+bert_test.to_csv("DistillBert_datasets/test.csv", index=False)
+
+# Zip both sets
+
+with zipfile.ZipFile("DistillBert_datasets.zip", 'w') as zipf:
+    for file in os.listdir("DistillBert_datasets"):
+        zipf.write(os.path.join("DistillBert_datasets", file), arcname=file)
+
+from google.colab import files
+files.download("DistillBert_datasets.zip")
+
+# %%
+
+
+
