@@ -2,7 +2,7 @@
 
 > 🔍 **Course:** AIGC5005 - Advanced Deep Learning  
 > 📝 **Project Type:** Final Project  
-> 👩‍💻 **Team Size:** 5 Members  
+> 👩‍💻 **Team Size:** 3 Members   (Chandana, Devi, Jaspreet)
 > 📂 **Domain:** Natural Language Processing  
 > 📈 **Task:** Multiclass Sentiment Classification (Positive, Negative, Neutral)
 
@@ -27,4 +27,20 @@ This project presents a comparative analysis of two deep learning models—**LST
 
 ## 🗂 Repository Structure
 
-ADL_Final_Project/ ├── data/ # Preprocessed Yelp dataset ├── notebooks/ │ ├── 1_LSTM_Model.ipynb # LSTM model implementation │ ├── 2_DistilBERT_Model.ipynb # DistilBERT fine-tuning │ ├── 3_Evaluation_Comparison.ipynb # Accuracy, F1, precision, recall │ ├── 4_Interpretability.ipynb # SHAP & LIME visualizations ├── outputs/ │ ├── confusion_matrices/ │ ├── lime_shap_plots/ │ └── training_logs/ ├── saved_models/ │ ├── best_model_lstm/ │ └── best_model_distilbert/ ├── report/ │ └── AIGC5005_Final_Report.pdf ├── requirements.txt └── README.md
+ADL_Final_Project/
+
+├── data/                            # Preprocessed Yelp dataset
+├── notebooks/                       # Jupyter Notebooks
+│   ├── 1_LSTM_Model.ipynb           # LSTM model implementation
+│   ├── 2_DistilBERT_Model.ipynb     # DistilBERT fine-tuning
+├── outputs/                         # Model outputs and logs
+│   ├── All plots and images
+│   └── training_logs/               # Loss/accuracy tracking logs
+├── saved_models/                    # Best model checkpoints
+│   ├── best_model_lstm/             # Saved LSTM model
+│   └── best_model_distilbert/       # Saved DistilBERT model
+├── report/                          # Final PDF report
+│   └── AIGC5005_Final_Report.pdf
+├── requirements.txt                 # Project dependencies
+└── README.md                        # This README file
+
