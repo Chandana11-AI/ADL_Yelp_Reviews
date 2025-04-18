@@ -1,12 +1,12 @@
-# 🧠 Sentiment Analysis on Yelp Reviews using DistilBERT
+# Sentiment Analysis on Yelp Reviews using DistilBERT
 
-## 📌 Overview  
+## Overview  
 This project demonstrates how to classify Yelp reviews into **Positive**, **Neutral**, or **Negative** sentiments using a fine-tuned **DistilBERT** transformer model.  
 It also includes interpretability via **LIME** and **SHAP**, performance diagnostics by **review length**, and detailed misclassification analysis.
 
 ---
 
-## 🛠️ Tools & Tech  
+## 🛠Tools & Tech  
 - Python  
 - Hugging Face Transformers  
 - PyTorch  
@@ -16,7 +16,7 @@ It also includes interpretability via **LIME** and **SHAP**, performance diagnos
 
 ---
 
-## 🔍 Key Features  
+## Key Features  
 - Cleaned and augmented Yelp review dataset with class imbalance handling  
 - Fine-tuned DistilBERT on 3 sentiment classes  
 - Hyperparameter tuning using grid search across 7 parameters  
@@ -27,26 +27,26 @@ It also includes interpretability via **LIME** and **SHAP**, performance diagnos
 
 ---
 
-## 📊 Results  
-- 📈 Best Model: DistilBERT  
-- 🎯 Weighted F1 Score: **88.1%**  
-- ✅ Best accuracy on **long reviews**: 85.7%  
-- 📉 Slight performance drop on **very long reviews**: 83.6%  
-- 🔍 LIME/SHAP confirmed that the model focuses on meaningful sentiment terms
+## Results  
+- Best Model: DistilBERT  
+- Weighted F1 Score: **88.1%**  
+- Best accuracy on **long reviews**: 85.7%  
+- Slight performance drop on **very long reviews**: 83.6%  
+-  LIME/SHAP confirmed that the model focuses on meaningful sentiment terms
 
 ---
 
-## 🚀 How to Run  
+##  How to Run  
 ```bash
 pip install transformers torch shap lime scikit-learn matplotlib
 ```
 
 Run the notebook:  
-📘 `ADL_DistilBert_Final_Project.ipynb` in Google Colab (A100 GPU recommended)
+`ADL_DistilBert_Final_Project.ipynb` in Google Colab (A100 GPU recommended)
 
 ---
 
-## 📁 Files  
+## Files  
 - `ADL_DistilBert_Final_Project.ipynb`: Main notebook  
 - `cleaned_yelp_reviews.csv`: Preprocessed labeled dataset  
 - `model.safetensors`, `config.json`: Best model and configuration  
