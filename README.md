@@ -45,5 +45,5 @@ ADL_Final_Project/
 └── README.md                        # This README file
 
 
-ADL_Final_Project/ ├── data/ # Preprocessed Yelp dataset ├── notebooks/ # Jupyter Notebooks │ ├── 1_LSTM_Model.ipynb # LSTM model implementation │ ├── 2_DistilBERT_Model.ipynb # DistilBERT fine-tuning ├── outputs/ # Model outputs and logs │ ├── All plots and images │ └── training_logs/ # Loss/accuracy tracking logs ├── saved_models/ # Best model checkpoints │ ├── best_model_lstm/ # Saved LSTM model │ └── best_model_distilbert/ # Saved DistilBERT model ├── report/ # Final PDF report │ └── AIGC5005_Final_Report.pdf ├── requirements.txt # Project dependencies └── README.md # This README file
+
 
