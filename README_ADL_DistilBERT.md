@@ -1,60 +1,30 @@
-# Sentiment Analysis on Yelp Reviews using DistilBERT
+# DistilBERT Sentiment Classification — Experiment Guide
 
-## Overview  
-This project demonstrates how to classify Yelp reviews into **Positive**, **Neutral**, or **Negative** sentiments using a fine-tuned **DistilBERT** transformer model.  
-It also includes interpretability via **LIME** and **SHAP**, performance diagnostics by **review length**, and detailed misclassification analysis.
+Part of the team [Yelp sentiment-classification project](README.md).
 
----
+## Implementation
+Open [ADL_DistilBert_Final_Project.ipynb](ADL_DistilBert_Final_Project.ipynb). The notebook fine-tunes `distilbert-base-uncased` with Hugging Face Transformers and PyTorch for three sentiment classes. It includes weighted cross-entropy, training-configuration search and error-analysis cells.
 
-## 🛠Tools & Tech  
-- Python  
-- Hugging Face Transformers  
-- PyTorch  
-- Scikit-learn  
-- Matplotlib, SHAP, LIME  
-- Google Colab (GPU: A100)
+This is fine-tuning a pretrained transformer, not pretraining a foundation model.
 
----
+## Recorded held-out test output
 
-## Key Features  
-- Cleaned and augmented Yelp review dataset with class imbalance handling  
-- Fine-tuned DistilBERT on 3 sentiment classes  
-- Hyperparameter tuning using grid search across 7 parameters  
-- Evaluation across buckets of review lengths (short, medium, long, very long)  
-- Misclassification audit with confidence-based filtering  
-- Model interpretability via SHAP and LIME  
-- Training and evaluation metric visualization (loss, F1, calibration)
+| Metric | Saved result |
+|---|---:|
+| Accuracy | 0.8128 |
+| Weighted F1 | 0.8129 |
+| Macro F1 | 0.7955 |
+| Negative F1 | 0.8575 |
+| Neutral F1 | 0.6606 |
+| Positive F1 | 0.8685 |
+| Test support | 7,752 |
 
----
+These figures come from the committed classification-report output. They replace the earlier unsupported 88.1% weighted-F1 summary. The documentation update did not retrain the model.
 
-## Results  
-- Best Model: DistilBERT  
-- Weighted F1 Score: **88.1%**  
-- Best accuracy on **long reviews**: 85.7%  
-- Slight performance drop on **very long reviews**: 83.6%  
--  LIME/SHAP confirmed that the model focuses on meaningful sentiment terms
+## Inputs and reproducibility
+The notebook loads `DistillBert_datasets/train.csv`, `val.csv` and `test.csv`. Those generated CSVs and model weights are not in the repository. Review the preprocessing notebook, data-access requirements, package imports, local paths and checkpoint selection before rerunning.
 
----
+## Analysis and limits
+The notebook explores confident mistakes, review-length effects and model explanations. In the saved test report, neutral sentiment is more difficult than positive or negative sentiment. High-confidence mistakes illustrate that softmax confidence is not a correctness guarantee.
 
-##  How to Run  
-```bash
-pip install transformers torch shap lime scikit-learn matplotlib
-```
-
-Run the notebook:  
-`ADL_DistilBert_Final_Project.ipynb` in Google Colab (A100 GPU recommended)
-
----
-
-## Files  
-- `ADL_DistilBert_Final_Project.ipynb`: Main notebook  
-- `cleaned_yelp_reviews.csv`: Preprocessed labeled dataset  
-- `model.safetensors`, `config.json`: Best model and configuration  
-- `log_history.json`, `metrics.csv`: Training logs and evaluation scores  
-- `.png` files: Plots for training curves, review length accuracy, calibration, SHAP explanations  
-- `distilbert_project_bundle.zip`: Final zipped folder with all important outputs
-
----
-
-## 📌 Status  
-✅ Completed and ready for presentation/demo
+Length-bucket analysis uses a broader cleaned dataset and should not be presented as a held-out benchmark. The [main README](README.md) describes pre-split augmentation concerns, actual file contents and next steps for a controlled LSTM/DistilBERT comparison.
